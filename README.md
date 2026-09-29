@@ -61,6 +61,10 @@ npm run typecheck:api
      `GROQ_API_KEY` / `OPENROUTER_API_KEY` كبديل، و`FCM_PROJECT_ID/CLIENT_EMAIL/PRIVATE_KEY` للـ Push.
 4. افتح `/api/health` للتأكد: `{ok:true, db:true, ...}`.
 
+> ملاحظة: cron فحص الجرعات الفائتة مضبوط يومياً (`0 3 * * *`) لتوافق خطة Hobby —
+> فحص الفائت اللحظي يتم على جهاز المستخدم عند فتح التطبيق، وcron للسيرفر مجرد شبكة أمان.
+> على خطة Pro يمكنك تغييره في `vercel.json` إلى `*/15 * * * *`.
+
 ## حزمة الموبايل (Android APK) — Capacitor
 
 ```bash
