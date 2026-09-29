@@ -61,9 +61,11 @@ npm run typecheck:api
      `GROQ_API_KEY` / `OPENROUTER_API_KEY` كبديل، و`FCM_PROJECT_ID/CLIENT_EMAIL/PRIVATE_KEY` للـ Push.
 4. افتح `/api/health` للتأكد: `{ok:true, db:true, ...}`.
 
-> ملاحظة: cron فحص الجرعات الفائتة مضبوط يومياً (`0 3 * * *`) لتوافق خطة Hobby —
-> فحص الفائت اللحظي يتم على جهاز المستخدم عند فتح التطبيق، وcron للسيرفر مجرد شبكة أمان.
-> على خطة Pro يمكنك تغييره في `vercel.json` إلى `*/15 * * * *`.
+> ملاحظة: فحص الجرعات الفائتة يعمل على جهاز المستخدم عند فتح التطبيق (كل 5 دقائق
+> وعند العودة للتطبيق). أضفت نقطة `/api/cron/missed` كشبكة أمان إضافية على السيرفر،
+> وهي معطلة افتراضياً؛ لتشغيلها على خطة Pro أضف إلى `vercel.json`:
+> `"crons": [{ "path": "/api/cron/missed", "schedule": "0 3 * * *" }]`
+> (خطة Hobby لا تدعم crons متكررة وقد يرفض النشر معها).
 
 ## حزمة الموبايل (Android APK) — Capacitor
 
