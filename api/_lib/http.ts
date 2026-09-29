@@ -1,4 +1,21 @@
-// api/_lib/http — مساعدات الاستجابة وCORS وغلاف معالجة الأخطاء.
+// api/_lib/http — مساعدات على النمط الكلاسيكي (req/res):
+// حاضنة الدوال في Vercel هنا لا تُكمل استدعاءات نمط Request/Response
+// (تعلّق بلا رؤوس) — النمط الكلاسيكي هو الوحيد الموثوق في هذا المشروع.
+
+export interface VReq {
+  method?: string;
+  url?: string;
+  headers: Record<string, string | string[] | undefined>;
+  query?: Record<string, string | string[] | undefined>;
+  body?: unknown;
+}
+
+export interface VRes {
+  setHeader(name: string, value: string): VRes;
+  status(code: number): VRes;
+  json(data: unknown): VRes;
+  end(): VRes;
+}
 
 const ALLOWED_ORIGINS = new Set([
   'capacitor://localhost',
@@ -9,59 +26,70 @@ const ALLOWED_ORIGINS = new Set([
   'https://tauri.localhost',
 ]);
 
-export function corsHeaders(req: Request): Record<string, string> {
-  const origin = req.headers.get('origin') ?? '';
-  const headers: Record<string, string> = {
-    'Access-Control-Allow-Methods': 'GET,POST,OPTIONS',
-    'Access-Control-Allow-Headers': 'Content-Type,Authorization',
-    'Access-Control-Max-Age': '86400',
-  };
+function applyCors(req: VReq, res: VRes): void {
+  const origin = (req.headers.origin as string) ?? '';
   if (origin && (ALLOWED_ORIGINS.has(origin) || origin.endsWith('.vercel.app'))) {
-    headers['Access-Control-Allow-Origin'] = origin;
-    headers.Vary = 'Origin';
+    res.setHeader('Access-Control-Allow-Origin', origin);
+    res.setHeader('Vary', 'Origin');
   }
-  return headers;
+  res.setHeader('Access-Control-Allow-Methods', 'GET,POST,OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type,Authorization');
+  res.setHeader('Access-Control-Max-Age', '86400');
 }
 
-export function json(req: Request, status: number, body: unknown): Response {
-  return new Response(JSON.stringify(body), {
-    status,
-    headers: { 'Content-Type': 'application/json; charset=utf-8', ...corsHeaders(req) },
-  });
+export function json(req: VReq, res: VRes, status: number, body: unknown): void {
+  applyCors(req, res);
+  res.status(status).json(body);
 }
 
 export function httpError(status: number, message: string): Error & { status: number } {
   return Object.assign(new Error(message), { status });
 }
 
-/** يوحّد قراءة params الديناميكية (Vercel قد يمررها كائناً أو Promise) */
-export async function routeParams(ctx: { params?: unknown }): Promise<Record<string, string>> {
-  const p: unknown = ctx?.params;
-  if (p && typeof (p as Promise<unknown>).then === 'function') {
-    return (await p) as Record<string, string>;
-  }
-  return (p as Record<string, string>) ?? {};
-}
+type Fn = (req: VReq, res: VRes) => Promise<void>;
 
-/** غلاف موحد: يلتقط الأخطاء ويعيدها JSON عربي واضح */
-export function handler(fn: (req: Request, ctx: { params?: Record<string, string> }) => Promise<Response>) {
-  return async (req: Request, ctx: { params?: Record<string, string> }): Promise<Response> => {
+/** غلاف موحد: OPTIONS، والتقاط الأخطاء كـ JSON عربي واضح */
+export function handler(fn: Fn) {
+  return async (req: VReq, res: VRes): Promise<void> => {
     try {
-      if (req.method === 'OPTIONS') return new Response(null, { status: 204, headers: corsHeaders(req) });
-      return await fn(req, ctx ?? {});
+      if (req.method === 'OPTIONS') {
+        applyCors(req, res);
+        res.status(204).end();
+        return;
+      }
+      await fn(req, res);
     } catch (e) {
       const err = e as Error & { status?: number };
       const status = err.status ?? 500;
       if (status === 500) console.error('[api]', err);
-      return json(req, status, { error: err.message || 'خطأ غير متوقع في السيرفر.' });
+      json(req, res, status, { error: err.message || 'خطأ غير متوقع في السيرفر.' });
     }
   };
 }
 
-export async function readJson<T>(req: Request): Promise<T> {
-  try {
-    return (await req.json()) as T;
-  } catch {
-    throw httpError(400, 'طلب غير صالح (JSON).');
+/** جسم الطلب JSON (Vercel يفكّه تلقائياً، مع احتياط نصي) */
+export function readJson<T>(req: VReq): T {
+  const b = req.body;
+  if (b === undefined || b === null) throw httpError(400, 'طلب غير صالح (JSON).');
+  if (typeof b === 'string') {
+    try {
+      return JSON.parse(b) as T;
+    } catch {
+      throw httpError(400, 'طلب غير صالح (JSON).');
+    }
   }
+  return b as T;
+}
+
+/** قراءة معامل مسار ديناميكي مثل [action] من req.query */
+export function routeParam(req: VReq, name: string): string {
+  const v = req.query?.[name];
+  return (Array.isArray(v) ? v[0] : v) ?? '';
+}
+
+/** يبني URL كاملاً من req لقراءة استعلامات البحث */
+export function fullUrl(req: VReq): URL {
+  const host = (req.headers['x-forwarded-host'] as string) ?? (req.headers.host as string) ?? 'localhost';
+  const proto = (req.headers['x-forwarded-proto'] as string) ?? 'https';
+  return new URL(req.url ?? '/', `${proto}://${host}`);
 }

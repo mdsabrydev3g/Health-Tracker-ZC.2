@@ -1,10 +1,10 @@
-// POST /api/sync/push — يدفع عمليات outbox للعائلة.
+// POST /api/sync/push — يدفع عمليات outbox للعائلة (نمط req/res).
 // محمي بالمصادقة، وكل كتابة معزولة بـ family_id، مع audit log.
 // الأحداث (جرعات/مخزون) append-only: تُدرج مرة واحدة بالمعرف.
 
 import { ensureSchema, getSql, nextFamilySeq, audit, entityTable, UPDATABLE_ENTITIES, APPEND_ONLY_ENTITIES } from '../_lib/db';
 import { requireAuth } from '../_lib/auth';
-import { handler, json, readJson, httpError } from '../_lib/http';
+import { handler, json, readJson, httpError, type VReq, type VRes } from '../_lib/http';
 
 interface Op {
   seq: number;
@@ -16,7 +16,7 @@ interface Op {
   at: number;
 }
 
-export default handler(async (req) => {
+export default handler(async (req: VReq, res: VRes) => {
   if (req.method !== 'POST') throw httpError(405, 'طريقة غير مدعومة.');
   await ensureSchema();
   const ctx = await requireAuth(req);
@@ -62,5 +62,5 @@ export default handler(async (req) => {
   }
 
   const last = await q`SELECT last_seq FROM families WHERE id = ${ctx.familyId}`;
-  return json(req, 200, { results, lastSeq: Number(last[0]?.last_seq ?? 0) });
+  json(req, res, 200, { results, lastSeq: Number(last[0]?.last_seq ?? 0) });
 });

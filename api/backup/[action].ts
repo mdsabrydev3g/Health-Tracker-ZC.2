@@ -1,15 +1,15 @@
 // api/backup/[action] — موجّه واحد للنسخ الاحتياطية: store | list | get
 
-import { handler, routeParams } from '../_lib/http';
+import { handler, routeParam } from '../_lib/http';
 import { handleStore, handleList, handleGet } from '../_handlers/backup';
 
-export default handler(async (req, ctx) => {
-  const { action } = await routeParams(ctx);
+export default handler(async (req, res) => {
+  const action = routeParam(req, 'action');
   switch (action) {
-    case 'store': return handleStore(req);
-    case 'list': return handleList(req);
-    case 'get': return handleGet(req);
+    case 'store': return handleStore(req, res);
+    case 'list': return handleList(req, res);
+    case 'get': return handleGet(req, res);
     default:
-      return Response.json({ error: 'عملية غير معروفة.' }, { status: 404 });
+      res.status(404).json({ error: 'عملية غير معروفة.' });
   }
 });

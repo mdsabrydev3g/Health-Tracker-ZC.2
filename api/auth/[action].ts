@@ -1,25 +1,19 @@
 // api/auth/[action] — موجّه واحد لكل عمليات المصادقة:
 // register | join | login | refresh | me
-// (خطة Vercel Hobby تسمح بـ12 دالة كحد أقصى للنشر — الدمج يخفض العدد الكلي).
+// (خطة Vercel Hobby تسمح بـ12 دالة كحد أقصى — الدمج يخفض العدد الكلي)
 
-import { handler, routeParams } from '../_lib/http';
-import { requireAuth } from '../_lib/auth';
-import {
-  handleRegister, handleJoin, handleLogin, handleRefresh, handleMe,
-} from '../_handlers/auth';
+import { handler, routeParam } from '../_lib/http';
+import { handleRegister, handleJoin, handleLogin, handleRefresh, handleMe } from '../_handlers/auth';
 
-export default handler(async (req, ctx) => {
-  const { action } = await routeParams(ctx);
+export default handler(async (req, res) => {
+  const action = routeParam(req, 'action');
   switch (action) {
-    case 'register': return handleRegister(req);
-    case 'join': return handleJoin(req);
-    case 'login': return handleLogin(req);
-    case 'refresh': return handleRefresh(req);
-    case 'me':
-      // التحقق من الهوية ثم تمرير الطلب الأصلي (handleMe يقرأ Bearer بنفسه)
-      await requireAuth(req);
-      return handleMe(req);
+    case 'register': return handleRegister(req, res);
+    case 'join': return handleJoin(req, res);
+    case 'login': return handleLogin(req, res);
+    case 'refresh': return handleRefresh(req, res);
+    case 'me': return handleMe(req, res);
     default:
-      return Response.json({ error: 'عملية غير معروفة.' }, { status: 404 });
+      res.status(404).json({ error: 'عملية غير معروفة.' });
   }
 });

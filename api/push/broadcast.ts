@@ -1,10 +1,10 @@
-// POST /api/push/broadcast — يرسل إشعاراً لبقية أجهزة العائلة عبر FCM.
+// POST /api/push/broadcast — يرسل إشعاراً لبقية أجهزة العائلة عبر FCM (نمط req/res).
 // الرسائل: dose_taken / dose_missed / stock_urgent / stock_low.
 // الصوت فقط للعاجل (نفاد دواء هام) — باقي الإشعارات صامتة.
 
 import { ensureSchema, getSql, audit } from '../_lib/db';
 import { requireAuth, httpError } from '../_lib/auth';
-import { handler, json, readJson } from '../_lib/http';
+import { handler, json, readJson, type VReq, type VRes } from '../_lib/http';
 import { fcmConfigured, sendPush } from '../_lib/fcm';
 
 interface Body {
@@ -20,7 +20,7 @@ const TITLES: Record<Body['kind'], string> = {
   stock_low: 'مخزون دواء ينخفض',
 };
 
-export default handler(async (req) => {
+export default handler(async (req: VReq, res: VRes) => {
   if (req.method !== 'POST') throw httpError(405, 'طريقة غير مدعومة.');
   await ensureSchema();
   const ctx = await requireAuth(req);
@@ -53,7 +53,7 @@ export default handler(async (req) => {
     if (ok) sent++;
   }
   await audit(ctx.familyId, ctx.userId, `broadcast:${body.kind}`, 'push', `${sent}/${devices.length}`);
-  return json(req, 200, { sent, total: devices.length, fcm: fcmConfigured() });
+  json(req, res, 200, { sent, total: devices.length, fcm: fcmConfigured() });
 });
 
 function bodyToData(payload: Record<string, unknown>): Record<string, string> {

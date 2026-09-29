@@ -1,8 +1,8 @@
-// api/_handlers/ai — منطق مزودي AI في ملف واحد (يستدعيه ai/[action].ts).
+// api/_handlers/ai — منطق مزودي AI (يستدعيه ai/[action].ts) — نمط req/res.
 
 import { ensureSchema, getSql, nextFamilySeq } from '../_lib/db';
 import { requireAuth } from '../_lib/auth';
-import { json, readJson, httpError } from '../_lib/http';
+import { json, readJson, httpError, type VReq, type VRes } from '../_lib/http';
 import { completeWithFallback, providersStatus } from '../_lib/aiProviders';
 import type { AiMessage } from '../_lib/aiTypes';
 
@@ -26,13 +26,13 @@ interface Body {
 const MAX_FILE_BYTES = 6 * 1024 * 1024;
 
 /** GET /api/ai/status — المزودون المتاحون (بلا مفاتيح) */
-export async function handleStatus(req: Request): Promise<Response> {
+export async function handleStatus(req: VReq, res: VRes): Promise<void> {
   const providers = providersStatus();
-  return json(req, 200, { providers, any: providers.some((p) => p.available) });
+  json(req, res, 200, { providers, any: providers.some((p) => p.available) });
 }
 
 /** POST /api/ai/run | /api/ai/summarize | /api/ai/chat */
-export async function handleRun(req: Request): Promise<Response> {
+export async function handleRun(req: VReq, res: VRes): Promise<void> {
   if (req.method !== 'POST') throw httpError(405, 'طريقة غير مدعومة.');
   await ensureSchema();
   const ctx = await requireAuth(req);
@@ -66,5 +66,5 @@ export async function handleRun(req: Request): Promise<Response> {
     await nextFamilySeq(ctx.familyId);
   }
 
-  return json(req, 200, { text: result.text, provider: result.provider, model: result.model });
+  json(req, res, 200, { text: result.text, provider: result.provider, model: result.model });
 }

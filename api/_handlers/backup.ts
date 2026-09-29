@@ -1,13 +1,13 @@
-// api/_handlers/backup — منطق النسخ الاحتياطية المشفرة (يستدعيه backup/[action].ts).
+// api/_handlers/backup — النسخ الاحتياطية المشفرة (يستدعيه backup/[action].ts).
 // السيرفر يخزّن نصاً مشفّراً فقط — التشفير من جهة العميل (AES-256-GCM).
 
 import { randomBytes } from 'node:crypto';
 import { ensureSchema, getSql, audit } from '../_lib/db';
 import { requireAuth } from '../_lib/auth';
-import { json, readJson, httpError } from '../_lib/http';
+import { json, readJson, httpError, fullUrl, type VReq, type VRes } from '../_lib/http';
 
 /** POST /api/backup/store */
-export async function handleStore(req: Request): Promise<Response> {
+export async function handleStore(req: VReq, res: VRes): Promise<void> {
   if (req.method !== 'POST') throw httpError(405, 'طريقة غير مدعومة.');
   await ensureSchema();
   const ctx = await requireAuth(req);
@@ -26,17 +26,17 @@ export async function handleStore(req: Request): Promise<Response> {
     await q`DELETE FROM backups WHERE id = ${r.id} AND family_id = ${ctx.familyId}`;
   }
   await audit(ctx.familyId, ctx.userId, 'backup_store', 'backup', id);
-  return json(req, 200, { id });
+  json(req, res, 200, { id });
 }
 
 /** GET /api/backup/list */
-export async function handleList(req: Request): Promise<Response> {
+export async function handleList(req: VReq, res: VRes): Promise<void> {
   await ensureSchema();
   const ctx = await requireAuth(req);
   const q = getSql();
   const rows = await q`SELECT id, size, created_at FROM backups
                        WHERE family_id = ${ctx.familyId} ORDER BY created_at DESC LIMIT 10`;
-  return json(req, 200, {
+  json(req, res, 200, {
     backups: (rows as { id: string; size: number; created_at: string }[]).map((r) => ({
       id: r.id, size: Number(r.size), createdAt: Number(r.created_at),
     })),
@@ -44,15 +44,15 @@ export async function handleList(req: Request): Promise<Response> {
 }
 
 /** GET /api/backup/get?id=... */
-export async function handleGet(req: Request): Promise<Response> {
+export async function handleGet(req: VReq, res: VRes): Promise<void> {
   await ensureSchema();
   const ctx = await requireAuth(req);
-  const id = new URL(req.url).searchParams.get('id') ?? '';
+  const id = fullUrl(req).searchParams.get('id') ?? '';
   if (!id) throw httpError(400, 'id مطلوب.');
   const q = getSql();
   const rows = await q`SELECT cipher, created_at FROM backups
                        WHERE id = ${id} AND family_id = ${ctx.familyId}`;
   if (!rows.length) throw httpError(404, 'النسخة غير موجودة.');
   const r = rows[0] as { cipher: string; created_at: string };
-  return json(req, 200, { cipher: r.cipher, createdAt: Number(r.created_at) });
+  json(req, res, 200, { cipher: r.cipher, createdAt: Number(r.created_at) });
 }

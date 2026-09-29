@@ -1,10 +1,10 @@
-// api/_handlers/auth — منطق المصادقة الخمسة في ملف واحد (يستدعيه auth/[action].ts).
-// المجلدات التي تبدأ بـ _ لا تُحسب دوالاً serverless على Vercel.
+// api/_handlers/auth — منطق المصادقة الخمسة (يستدعيه auth/[action].ts)
+// على النمط الكلاسيكي (req/res).
 
 import { randomBytes } from 'node:crypto';
 import { ensureSchema, getSql, audit } from '../_lib/db';
 import { hashPassword, verifyPassword, signAccess, signRefresh, verifyToken } from '../_lib/auth';
-import { json, readJson, httpError } from '../_lib/http';
+import { json, readJson, httpError, type VReq, type VRes } from '../_lib/http';
 
 interface Tokens {
   accessToken: string;
@@ -19,7 +19,7 @@ async function issueTokens(userId: string, familyId: string, role: string): Prom
 }
 
 /** POST /api/auth/register */
-export async function handleRegister(req: Request): Promise<Response> {
+export async function handleRegister(req: VReq, res: VRes): Promise<void> {
   const body = await readJson<{ familyName: string; login: string; password: string; name: string }>(req);
   if (!body.login || !body.password || body.password.length < 8) {
     throw httpError(400, 'كلمة المرور يجب أن تكون 8 أحرف على الأقل.');
@@ -44,7 +44,7 @@ export async function handleRegister(req: Request): Promise<Response> {
           })}, ${now})`;
   await audit(familyId, userId, 'register', 'family', familyId);
 
-  return json(req, 200, {
+  json(req, res, 200, {
     user: { id: userId, familyId, login: body.login, name: body.name || body.login, role: 'owner', personId },
     family: { id: familyId, name: body.familyName || 'عائلتي', inviteCode },
     tokens: await issueTokens(userId, familyId, 'owner'),
@@ -52,7 +52,7 @@ export async function handleRegister(req: Request): Promise<Response> {
 }
 
 /** POST /api/auth/join */
-export async function handleJoin(req: Request): Promise<Response> {
+export async function handleJoin(req: VReq, res: VRes): Promise<void> {
   const body = await readJson<{ inviteCode: string; login: string; password: string; name: string; role: 'mother' | 'member' }>(req);
   if (!body.inviteCode || !body.login || body.password.length < 8) {
     throw httpError(400, 'بيانات ناقصة أو كلمة المرور أقصر من 8 أحرف.');
@@ -77,14 +77,14 @@ export async function handleJoin(req: Request): Promise<Response> {
           })}, ${now})`;
   await audit(familyId, userId, 'join', 'family', familyId);
 
-  return json(req, 200, {
+  json(req, res, 200, {
     user: { id: userId, familyId, login: body.login, name: body.name || body.login, role, personId },
     tokens: await issueTokens(userId, familyId, role),
   });
 }
 
 /** POST /api/auth/login */
-export async function handleLogin(req: Request): Promise<Response> {
+export async function handleLogin(req: VReq, res: VRes): Promise<void> {
   const { login, password } = await readJson<{ login: string; password: string }>(req);
   const q = getSql();
   const rows = await q`SELECT id, family_id, pass_hash, name, role, person_id FROM users WHERE login = ${login}`;
@@ -92,14 +92,14 @@ export async function handleLogin(req: Request): Promise<Response> {
   if (!u || !verifyPassword(password, u.pass_hash)) {
     throw httpError(401, 'اسم الدخول أو كلمة المرور غير صحيحة.');
   }
-  return json(req, 200, {
+  json(req, res, 200, {
     user: { id: u.id, familyId: u.family_id, login, name: u.name, role: u.role, personId: u.person_id ?? undefined },
     tokens: await issueTokens(u.id, u.family_id, u.role),
   });
 }
 
 /** POST /api/auth/refresh */
-export async function handleRefresh(req: Request): Promise<Response> {
+export async function handleRefresh(req: VReq, res: VRes): Promise<void> {
   const { refreshToken } = await readJson<{ refreshToken: string }>(req);
   const payload = await verifyToken(refreshToken ?? '', 'refresh');
   if (!payload) throw httpError(401, 'انتهت صلاحية الجلسة — سجّل الدخول من جديد.');
@@ -107,12 +107,13 @@ export async function handleRefresh(req: Request): Promise<Response> {
   const rows = await q`SELECT role FROM users WHERE id = ${payload.sub} AND family_id = ${payload.fam}`;
   if (!rows.length) throw httpError(401, 'الحساب غير موجود.');
   const role = String(rows[0].role);
-  return json(req, 200, { tokens: await issueTokens(payload.sub, payload.fam, role) });
+  json(req, res, 200, { tokens: await issueTokens(payload.sub, payload.fam, role) });
 }
 
 /** GET /api/auth/me */
-export async function handleMe(req: Request): Promise<Response> {
-  const header = req.headers.get('authorization') ?? '';
+export async function handleMe(req: VReq, res: VRes): Promise<void> {
+  const raw = req.headers['authorization'] ?? '';
+  const header = Array.isArray(raw) ? raw[0] ?? '' : raw;
   const token = header.startsWith('Bearer ') ? header.slice(7) : '';
   const payload = await verifyToken(token, 'access');
   if (!payload) throw httpError(401, 'الجلسة منتهية — سجّل الدخول من جديد.');
@@ -139,5 +140,5 @@ export async function handleMe(req: Request): Promise<Response> {
       inviteCode: String(u.role) === 'owner' ? String(f.invite_code) : undefined,
     };
   }
-  return json(req, 200, out);
+  json(req, res, 200, out);
 }

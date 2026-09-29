@@ -2,6 +2,7 @@
 
 import { SignJWT, jwtVerify } from 'jose';
 import { randomBytes, scryptSync, timingSafeEqual } from 'node:crypto';
+import type { VReq } from './http';
 
 export interface AuthCtx {
   userId: string;
@@ -64,8 +65,9 @@ export async function verifyToken(token: string, type: 'access' | 'refresh'): Pr
 }
 
 /** يستخرج ويتحقق من Bearer token — يرمي خطأ 401 عند الفشل */
-export async function requireAuth(req: Request): Promise<AuthCtx> {
-  const header = req.headers.get('authorization') ?? '';
+export async function requireAuth(req: VReq): Promise<AuthCtx> {
+  const raw = req.headers['authorization'] ?? '';
+  const header = Array.isArray(raw) ? raw[0] ?? '' : raw;
   const token = header.startsWith('Bearer ') ? header.slice(7) : '';
   if (!token) throw httpError(401, 'مطلوب تسجيل دخول.');
   const payload = await verifyToken(token, 'access');

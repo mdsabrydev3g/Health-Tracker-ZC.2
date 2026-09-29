@@ -1,8 +1,8 @@
-// POST /api/push/register — تسجيل توكن جهاز لاستقبال الإشعارات
+// POST /api/push/register — تسجيل توكن جهاز لاستقبال الإشعارات (نمط req/res)
 
 import { ensureSchema, getSql } from '../_lib/db';
 import { requireAuth } from '../_lib/auth';
-import { handler, json, readJson, httpError } from '../_lib/http';
+import { handler, json, readJson, httpError, type VReq, type VRes } from '../_lib/http';
 
 interface Body {
   deviceId: string;
@@ -12,7 +12,7 @@ interface Body {
   alarmHealth?: unknown;
 }
 
-export default handler(async (req) => {
+export default handler(async (req: VReq, res: VRes) => {
   if (req.method !== 'POST') throw httpError(405, 'طريقة غير مدعومة.');
   await ensureSchema();
   const ctx = await requireAuth(req);
@@ -25,5 +25,5 @@ export default handler(async (req) => {
           ON CONFLICT (id) DO UPDATE
           SET push_token = EXCLUDED.push_token, platform = EXCLUDED.platform,
               name = EXCLUDED.name, alarm_health = EXCLUDED.alarm_health, updated_at = EXCLUDED.updated_at`;
-  return json(req, 200, { ok: true });
+  json(req, res, 200, { ok: true });
 });
