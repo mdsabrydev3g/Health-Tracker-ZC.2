@@ -1,0 +1,18 @@
+[package]
+name = "health-tracker"
+version = "2.0.0"
+description = "رفيق الجرعات والصحة للعائلة — سطح المكتب"
+edition = "2021"
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = [] }
+tauri-plugin-notification = "2"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+
+[lib]
+name = "health_tracker_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]

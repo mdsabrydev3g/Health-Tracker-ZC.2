@@ -1,0 +1,13 @@
+node_modules/
+dist/
+.env
+.env.local
+*.local
+.DS_Store
+tsconfig.tsbuildinfo
+android/app/build/
+android/.gradle/
+android/local.properties
+src-tauri/target/
+src-tauri/gen/
+coverage/
