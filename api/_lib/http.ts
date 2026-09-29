@@ -34,6 +34,15 @@ export function httpError(status: number, message: string): Error & { status: nu
   return Object.assign(new Error(message), { status });
 }
 
+/** يوحّد قراءة params الديناميكية (Vercel قد يمررها كائناً أو Promise) */
+export async function routeParams(ctx: { params?: unknown }): Promise<Record<string, string>> {
+  const p: unknown = ctx?.params;
+  if (p && typeof (p as Promise<unknown>).then === 'function') {
+    return (await p) as Record<string, string>;
+  }
+  return (p as Record<string, string>) ?? {};
+}
+
 /** غلاف موحد: يلتقط الأخطاء ويعيدها JSON عربي واضح */
 export function handler(fn: (req: Request, ctx: { params?: Record<string, string> }) => Promise<Response>) {
   return async (req: Request, ctx: { params?: Record<string, string> }): Promise<Response> => {

@@ -1,11 +1,9 @@
-// POST /api/ai/summarize و /api/ai/chat — نافذة واحدة لمزودي AI.
-// الحماية: مصادقة + حد يومي لكل عائلة + مطالبة نظام تُفرض هنا دائماً
-// (حتى لو حاول العميل إرسال مطالبته الخاصة).
+// api/_handlers/ai — منطق مزودي AI في ملف واحد (يستدعيه ai/[action].ts).
 
 import { ensureSchema, getSql, nextFamilySeq } from '../_lib/db';
 import { requireAuth } from '../_lib/auth';
-import { handler, json, readJson, httpError } from '../_lib/http';
-import { completeWithFallback } from '../_lib/aiProviders';
+import { json, readJson, httpError } from '../_lib/http';
+import { completeWithFallback, providersStatus } from '../_lib/aiProviders';
 import type { AiMessage } from '../_lib/aiTypes';
 
 const DAILY_LIMIT = 60; // طلب/يوم/عائلة — يحمي الحصص المجانية
@@ -27,7 +25,14 @@ interface Body {
 
 const MAX_FILE_BYTES = 6 * 1024 * 1024;
 
-export default handler(async (req) => {
+/** GET /api/ai/status — المزودون المتاحون (بلا مفاتيح) */
+export async function handleStatus(req: Request): Promise<Response> {
+  const providers = providersStatus();
+  return json(req, 200, { providers, any: providers.some((p) => p.available) });
+}
+
+/** POST /api/ai/run | /api/ai/summarize | /api/ai/chat */
+export async function handleRun(req: Request): Promise<Response> {
   if (req.method !== 'POST') throw httpError(405, 'طريقة غير مدعومة.');
   await ensureSchema();
   const ctx = await requireAuth(req);
@@ -38,7 +43,6 @@ export default handler(async (req) => {
   }
 
   const q = getSql();
-  // حد يومي (بتوقيت UTC)
   const today = new Date().toISOString().slice(0, 10);
   const rows = await q`SELECT ai_day, ai_calls_today FROM families WHERE id = ${ctx.familyId}`;
   const f = rows[0] as { ai_day: string | null; ai_calls_today: number } | undefined;
@@ -63,4 +67,4 @@ export default handler(async (req) => {
   }
 
   return json(req, 200, { text: result.text, provider: result.provider, model: result.model });
-});
+}
